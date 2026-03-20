@@ -1,6 +1,7 @@
 import tkinter
 import tkintermapview
 import math
+import osmnx as ox
 
 # --- HÀM TÍNH KHOẢNG CÁCH ---
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -15,27 +16,35 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 # --- 1. TẠO MỘT CỬA SỔ DUY NHẤT ---
 root = tkinter.Tk()
-root.geometry("900x700")
+root.geometry("777x777")
 root.title("Hệ thống tìm đường Sankt-Peterburg")
 
 # --- 2. TẠO BẢN ĐỒ VÀ ĐẶT VÀO CỬA SỔ ---
-map_widget = tkintermapview.TkinterMapView(root, width=900, height=700, corner_radius=0)
+map_widget = tkintermapview.TkinterMapView(root, width=777, height=777, corner_radius=0)
 map_widget.pack(fill="both", expand=True)
 
 # --- 3. THIẾT LẬP TỌA ĐỘ VÀ DẤU GHIM ---
 hermitage = [59.9398, 30.3146]
 church_on_blood = [59.9401, 30.3286]
+center_point = (59.9400, 30.3200) # Tọa độ trung tâm
 
-# Đưa camera đến vị trí trung tâm giữa 2 điểm
-map_widget.set_position(59.9400, 30.3200)
-map_widget.set_zoom(14)
+map_widget.set_position(center_point[0], center_point[1])
+map_widget.set_zoom(15)
 
-# Cắm ghim trực tiếp lên map_widget
 map_widget.set_marker(hermitage[0], hermitage[1], text="Bảo tàng Hermitage")
 map_widget.set_marker(church_on_blood[0], church_on_blood[1], text="Nhà thờ Chúa Cứu Thế")
 
-# --- 4. TÍNH KHOẢNG CÁCH VÀ CHẠY ỨNG DỤNG ---
-dist = calculate_distance(hermitage[0], hermitage[1], church_on_blood[0], church_on_blood[1])
-print(f"Khoảng cách giữa hai điểm là: {dist:.2f} mét")
+path_1 = map_widget.set_path([hermitage, church_on_blood], color="red", width=3)
 
+# --- 4. TÍNH KHOẢNG CÁCH ---
+dist = calculate_distance(hermitage[0], hermitage[1], church_on_blood[0], church_on_blood[1])
+print(f"Khoảng cách đường chim bay là: {dist:.2f} mét")
+
+# --- 5. TẢI MẠNG LƯỚI ĐƯỜNG PHỐ THỰC TẾ ---
+print("Đang tải mạng lưới đường phố Sankt-Peterburg, vui lòng đợi một chút...")
+# Tải các đường dành cho xe cộ ('drive') trong bán kính 2000 mét từ tâm
+G = ox.graph_from_point(center_point, dist=2000, network_type='drive')
+print(f"Tuyệt vời! Đã tải xong bản đồ với {len(G.nodes)} điểm giao cắt và {len(G.edges)} đoạn đường.")
+
+# Lệnh này luôn nằm ở cuối cùng để giữ cửa sổ mở
 root.mainloop()
