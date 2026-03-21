@@ -37,17 +37,26 @@ class BFS(Algorithm):
         came_from = {start: None}
         closed = set([start])
         count_node = 0
+        
         while not open_set.empty():
             current = open_set.get()
             count_node += 1
             if current == goal: 
-                return count_node, self.reconstruct_path(start, goal, came_from)
+                path = self.reconstruct_path(start, goal, came_from)
+                # Tự cộng dồn khoảng cách cho BFS
+                total_dist = 0.0
+                for i in range(len(path)-1):
+                    lat1, lon1 = graph.nodes[path[i]]['y'], graph.nodes[path[i]]['x']
+                    lat2, lon2 = graph.nodes[path[i+1]]['y'], graph.nodes[path[i+1]]['x']
+                    total_dist += calculate_distance(lat1, lon1, lat2, lon2)
+                return count_node, path, total_dist
+                
             for neighbor in graph.neighbors(current):
                 if neighbor not in closed:
                     closed.add(neighbor)
                     came_from[neighbor] = current
                     open_set.put(neighbor)
-        return count_node, None
+        return count_node, None, 0.0
 
 class AStar(Algorithm):
     def run(self, start, goal, graph):
@@ -140,57 +149,53 @@ map_widget.add_right_click_menu_command(label="Đặt Điểm Đích", command=s
 # ==========================================
 current_path = None # Biến để nhớ đường đi hiện tại (để sau này xóa đi)
 
+# ==========================================
+# 5. CÁC HÀM XỬ LÝ NÚT BẤM VÀ MENU
+# ==========================================
+current_path = None
+
 def find_path():
     global current_path
-    
-    # Kiểm tra xem đã cắm đủ 2 ghim chưa
     if start_coords is None or goal_coords is None:
-        label_result.configure(text="Lỗi:\nVui lòng cắm đủ\nĐiểm Đầu và Đích!")
+        label_result.configure(text="Lỗi: Vui lòng cắm đủ\nĐiểm Đầu và Đích!")
         return
         
     label_result.configure(text="Đang tìm đường...")
-    root.update() # Cập nhật chữ trên màn hình ngay lập tức
+    root.update()
     
-    # Xóa đường đi cũ nếu có
     if current_path is not None:
         current_path.delete()
         
-    # Tìm điểm giao cắt gần nhất với 2 cái ghim
     start_node = ox.distance.nearest_nodes(G, X=start_coords[1], Y=start_coords[0])
     goal_node = ox.distance.nearest_nodes(G, X=goal_coords[1], Y=goal_coords[0])
     
-    # Chạy thuật toán A*
-    astar_algo = AStar()
-    nodes_searched, path_nodes, total_distance = astar_algo.run(start_node, goal_node, G)
+    # ĐỌC LỰA CHỌN TỪ DROPDOWN VÀ ĐỔI MÀU
+    selected_algo = algo_var.get()
+    if selected_algo == "A*":
+        algo = AStar()
+        path_color = "red"
+    else:
+        algo = BFS()
+        path_color = "blue"
     
-    # Nếu tìm thấy đường, vẽ lên bản đồ và in kết quả
+    # Chạy thuật toán đã chọn
+    nodes_searched, path_nodes, total_distance = algo.run(start_node, goal_node, G)
+    
     if path_nodes is not None:
-        path_coords = []
-        for node_id in path_nodes:
-            lat = G.nodes[node_id]['y']
-            lon = G.nodes[node_id]['x']
-            path_coords.append((lat, lon))
-            
-        current_path = map_widget.set_path(path_coords, color="red", width=4)
-        label_result.configure(text=f"Khoảng cách: {total_distance:.2f} m\nSố ngã rẽ: {len(path_nodes)}\nĐã duyệt: {nodes_searched} nút")
+        path_coords = [(G.nodes[n]['y'], G.nodes[n]['x']) for n in path_nodes]
+        current_path = map_widget.set_path(path_coords, color=path_color, width=4)
+        label_result.configure(text=f"Thuật toán: {selected_algo}\nKhoảng cách: {total_distance:.2f} m\nSố ngã rẽ: {len(path_nodes)}\nĐã duyệt: {nodes_searched} nút")
     else:
         label_result.configure(text="Không tìm thấy\nđường đi!")
 
 def clear_map():
     global start_marker, goal_marker, start_coords, goal_coords, current_path
-    
-    # Xóa ghim và đường đi trên bản đồ
     if start_marker: start_marker.delete()
     if goal_marker: goal_marker.delete()
     if current_path: current_path.delete()
-    
-    # Đưa các biến về trạng thái trống
     start_marker = goal_marker = current_path = None
     start_coords = goal_coords = None
-    
-    # Trả lại dòng chữ mặc định
     label_result.configure(text="Khoảng cách: N/A\nSố ngã rẽ: N/A")
-
 
 # ==========================================
 # 6. GẮN HÀM VÀO GIAO DIỆN KHUNG PHẢI
@@ -201,8 +206,12 @@ label_title.pack(pady=20)
 label_guide = customtkinter.CTkLabel(frame_right, text="Click chuột phải để\nchọn Điểm Đầu/Đích", text_color="gray")
 label_guide.pack(pady=10)
 
-# LƯU Ý: Đã thêm tham số command=find_path và command=clear_map
-btn_find = customtkinter.CTkButton(frame_right, text="Tìm Đường (A*)", command=find_path)
+# --- THÊM MENU THẢ XUỐNG CHỌN THUẬT TOÁN ---
+algo_var = customtkinter.StringVar(value="A*") # Mặc định là A*
+dropdown_algo = customtkinter.CTkOptionMenu(frame_right, values=["A*", "BFS"], variable=algo_var)
+dropdown_algo.pack(pady=10)
+
+btn_find = customtkinter.CTkButton(frame_right, text="Bắt Đầu Tìm!", command=find_path)
 btn_find.pack(pady=10)
 
 btn_clear = customtkinter.CTkButton(frame_right, text="Xóa Bản Đồ", fg_color="red", hover_color="darkred", command=clear_map)
