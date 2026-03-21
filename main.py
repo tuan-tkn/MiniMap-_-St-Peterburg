@@ -2,7 +2,7 @@ import tkinter
 import tkintermapview
 import math
 import osmnx as ox
-from queue import Queue
+from queue import Queue, PriorityQueue
 
 # --- HÀM TÍNH KHOẢNG CÁCH ---
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -106,26 +106,92 @@ class BFS(Algorithm):
         return count_node, None # Trả về None nếu không tìm thấy đường
 
 
-# --- 9. CHẠY THUẬT TOÁN VÀ VẼ ĐƯỜNG LÊN BẢN ĐỒ ---
-print("\nĐang chạy thuật toán BFS...")
-bfs_algo = BFS()
-nodes_searched, path_nodes = bfs_algo.run(start_node, goal_node, G)
+# # --- 9. CHẠY THUẬT TOÁN VÀ VẼ ĐƯỜNG LÊN BẢN ĐỒ ---
+# print("\nĐang chạy thuật toán BFS...")
+# bfs_algo = BFS()
+# nodes_searched, path_nodes = bfs_algo.run(start_node, goal_node, G)
+
+# if path_nodes is not None:
+#     print(f"Hoàn thành! BFS đã duyệt {nodes_searched} ngã rẽ.")
+#     print(f"Đường đi tìm được đi qua {len(path_nodes)} ngã rẽ.")
+    
+#     # Chuyển đổi danh sách ID thành danh sách Tọa độ (Vĩ độ, Kinh độ)
+#     path_coords = []
+#     for node_id in path_nodes:
+#         lat = G.nodes[node_id]['y']
+#         lon = G.nodes[node_id]['x']
+#         path_coords.append((lat, lon))
+        
+#     # Vẽ tuyến đường lên bản đồ (Màu xanh dương)
+#     real_path = map_widget.set_path(path_coords, color="blue", width=4)
+# else:
+#     print("Không tìm thấy đường đi nào nối hai điểm này!")
+
+# --- 10. TRIỂN KHAI THUẬT TOÁN A* (A-SAO) ---
+class AStar(Algorithm):
+    def run(self, start, goal, graph):
+        open_queue = PriorityQueue()
+        # Đưa điểm xuất phát vào hàng đợi với chi phí f=0
+        open_queue.put((0, start))
+        
+        came_from = {start: None}
+        g_score = {start: 0} # Lưu khoảng cách thực tế từ điểm xuất phát
+        count_node = 0
+        
+        # Lấy trước tọa độ của đích để lát tính Heuristic
+        goal_lat = graph.nodes[goal]['y']
+        goal_lon = graph.nodes[goal]['x']
+
+        while not open_queue.empty():
+            # Lấy ngã rẽ có tổng chi phí f(n) nhỏ nhất ra kiểm tra
+            current_f, current = open_queue.get()
+            count_node += 1
+
+            if current == goal:
+                return count_node, self.reconstruct_path(start, goal, came_from)
+
+            for neighbor in graph.neighbors(current):
+                # Lấy tọa độ của current và neighbor để tính chiều dài đoạn đường
+                lat1, lon1 = graph.nodes[current]['y'], graph.nodes[current]['x']
+                lat2, lon2 = graph.nodes[neighbor]['y'], graph.nodes[neighbor]['x']
+                
+                # Tính g(n): Chi phí đi đến neighbor
+                step_cost = calculate_distance(lat1, lon1, lat2, lon2)
+                tentative_g_score = g_score[current] + step_cost
+
+                # Nếu tìm được đường đi ngắn hơn đến neighbor này
+                if neighbor not in g_score or tentative_g_score < g_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    
+                    # Tính h(n): Ước lượng khoảng cách từ neighbor đến đích
+                    h_score = calculate_distance(lat2, lon2, goal_lat, goal_lon)
+                    
+                    # Tính f(n) = g(n) + h(n) và đưa vào hàng đợi
+                    f_score = tentative_g_score + h_score
+                    open_queue.put((f_score, neighbor))
+
+        return count_node, None
+    
+# --- CHẠY THUẬT TOÁN ---
+print("\nĐang chạy thuật toán A*...")
+astar_algo = AStar()
+nodes_searched, path_nodes = astar_algo.run(start_node, goal_node, G)
 
 if path_nodes is not None:
-    print(f"Hoàn thành! BFS đã duyệt {nodes_searched} ngã rẽ.")
+    print(f"Hoàn thành! A* cực kỳ thông minh, chỉ cần duyệt {nodes_searched} ngã rẽ.")
     print(f"Đường đi tìm được đi qua {len(path_nodes)} ngã rẽ.")
     
-    # Chuyển đổi danh sách ID thành danh sách Tọa độ (Vĩ độ, Kinh độ)
     path_coords = []
     for node_id in path_nodes:
         lat = G.nodes[node_id]['y']
         lon = G.nodes[node_id]['x']
         path_coords.append((lat, lon))
         
-    # Vẽ tuyến đường lên bản đồ (Màu xanh dương)
-    real_path = map_widget.set_path(path_coords, color="blue", width=4)
+    # Lần này ta vẽ đường màu đỏ tươi (red) cho A* nhé
+    real_path = map_widget.set_path(path_coords, color="red", width=4)
 else:
-    print("Không tìm thấy đường đi nào nối hai điểm này!")
+    print("Không tìm thấy đường!")
 
 # Lệnh này luôn nằm ở cuối cùng để giữ cửa sổ mở
 root.mainloop()
