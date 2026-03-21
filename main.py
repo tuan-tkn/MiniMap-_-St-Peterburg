@@ -102,17 +102,110 @@ center_point = (59.9400, 30.3200)
 map_widget.set_position(center_point[0], center_point[1])
 map_widget.set_zoom(14)
 
-# Cài đặt các nút bấm vào khung phải
+# --- TÍNH NĂNG MỚI: TƯƠNG TÁC CHUỘT PHẢI ---
+# 1. Các biến toàn cục để lưu trữ tọa độ và dấu ghim
+start_marker = None
+goal_marker = None
+start_coords = None
+goal_coords = None
+
+# 2. Hàm xử lý khi chọn "Đặt Điểm Đầu"
+def set_start(coords):
+    global start_marker, start_coords
+    # Nếu đã có ghim cũ thì xóa đi
+    if start_marker:
+        start_marker.delete()
+    # Cắm ghim mới màu xanh lá
+    start_marker = map_widget.set_marker(coords[0], coords[1], text="Điểm Đầu")
+    start_coords = coords
+    print(f"Đã cắm Điểm Đầu tại: {coords}")
+
+# 3. Hàm xử lý khi chọn "Đặt Điểm Đích"
+def set_goal(coords):
+    global goal_marker, goal_coords
+    if goal_marker:
+        goal_marker.delete()
+    # Cắm ghim mới màu đỏ
+    goal_marker = map_widget.set_marker(coords[0], coords[1], text="Điểm Đích")
+    goal_coords = coords
+    print(f"Đã cắm Điểm Đích tại: {coords}")
+
+# 4. Gắn lệnh vào Menu Chuột Phải của bản đồ
+map_widget.add_right_click_menu_command(label="Đặt Điểm Đầu", command=set_start, pass_coords=True)
+map_widget.add_right_click_menu_command(label="Đặt Điểm Đích", command=set_goal, pass_coords=True)
+# ------------------------------------------
+
+# ==========================================
+# 5. CÁC HÀM XỬ LÝ NÚT BẤM (NỐI ĐIỆN CHO NÚT)
+# ==========================================
+current_path = None # Biến để nhớ đường đi hiện tại (để sau này xóa đi)
+
+def find_path():
+    global current_path
+    
+    # Kiểm tra xem đã cắm đủ 2 ghim chưa
+    if start_coords is None or goal_coords is None:
+        label_result.configure(text="Lỗi:\nVui lòng cắm đủ\nĐiểm Đầu và Đích!")
+        return
+        
+    label_result.configure(text="Đang tìm đường...")
+    root.update() # Cập nhật chữ trên màn hình ngay lập tức
+    
+    # Xóa đường đi cũ nếu có
+    if current_path is not None:
+        current_path.delete()
+        
+    # Tìm điểm giao cắt gần nhất với 2 cái ghim
+    start_node = ox.distance.nearest_nodes(G, X=start_coords[1], Y=start_coords[0])
+    goal_node = ox.distance.nearest_nodes(G, X=goal_coords[1], Y=goal_coords[0])
+    
+    # Chạy thuật toán A*
+    astar_algo = AStar()
+    nodes_searched, path_nodes, total_distance = astar_algo.run(start_node, goal_node, G)
+    
+    # Nếu tìm thấy đường, vẽ lên bản đồ và in kết quả
+    if path_nodes is not None:
+        path_coords = []
+        for node_id in path_nodes:
+            lat = G.nodes[node_id]['y']
+            lon = G.nodes[node_id]['x']
+            path_coords.append((lat, lon))
+            
+        current_path = map_widget.set_path(path_coords, color="red", width=4)
+        label_result.configure(text=f"Khoảng cách: {total_distance:.2f} m\nSố ngã rẽ: {len(path_nodes)}\nĐã duyệt: {nodes_searched} nút")
+    else:
+        label_result.configure(text="Không tìm thấy\nđường đi!")
+
+def clear_map():
+    global start_marker, goal_marker, start_coords, goal_coords, current_path
+    
+    # Xóa ghim và đường đi trên bản đồ
+    if start_marker: start_marker.delete()
+    if goal_marker: goal_marker.delete()
+    if current_path: current_path.delete()
+    
+    # Đưa các biến về trạng thái trống
+    start_marker = goal_marker = current_path = None
+    start_coords = goal_coords = None
+    
+    # Trả lại dòng chữ mặc định
+    label_result.configure(text="Khoảng cách: N/A\nSố ngã rẽ: N/A")
+
+
+# ==========================================
+# 6. GẮN HÀM VÀO GIAO DIỆN KHUNG PHẢI
+# ==========================================
 label_title = customtkinter.CTkLabel(frame_right, text="TÌM ĐƯỜNG ĐI", font=("Arial", 20, "bold"))
 label_title.pack(pady=20)
 
-label_guide = customtkinter.CTkLabel(frame_right, text="Click chuột phải để chọn Điểm Đầu/Đích", text_color="gray")
+label_guide = customtkinter.CTkLabel(frame_right, text="Click chuột phải để\nchọn Điểm Đầu/Đích", text_color="gray")
 label_guide.pack(pady=10)
 
-btn_find = customtkinter.CTkButton(frame_right, text="Tìm Đường (A*)")
+# LƯU Ý: Đã thêm tham số command=find_path và command=clear_map
+btn_find = customtkinter.CTkButton(frame_right, text="Tìm Đường (A*)", command=find_path)
 btn_find.pack(pady=10)
 
-btn_clear = customtkinter.CTkButton(frame_right, text="Xóa Bản Đồ", fg_color="red", hover_color="darkred")
+btn_clear = customtkinter.CTkButton(frame_right, text="Xóa Bản Đồ", fg_color="red", hover_color="darkred", command=clear_map)
 btn_clear.pack(pady=10)
 
 label_result = customtkinter.CTkLabel(frame_right, text="Khoảng cách: N/A\nSố ngã rẽ: N/A", justify="left", font=("Arial", 14))
